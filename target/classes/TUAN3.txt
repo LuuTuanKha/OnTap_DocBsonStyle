@@ -1,0 +1,64 @@
+1. Chèn thêm 1 document mới
+db.zips.insertOne({ city: 'HADLEY_NEW', loc: [ -72.571499, 42.36062 ], pop: 4231, state: 'MA'})
+2. Cập nhật thông tin của một document khi biết id
+ db.zips.findOneAndReplace({ "_id" : "01007"},{ "_id" : "01007", "city" : "BELCHERTOWN", "loc" : [ -72.41095300000001, 42.275103 ], "pop" : 99999999, "state" : "MA" }, { "returnNewDocument": false })
+3. Tìm các document có city là PALMER
+db.zips.find({city:'PALMER'})
+4. Tìm các document có dân số >100000
+db.zips.find({pop: {$gt: 10000}})
+5. Tìm dân số của thành phố FISHERS ISLAND
+db.zips.find({city:'FISHERS ISLAND'},{pop:1,_id:0})
+6. Tìm các thành phố có dân số từ 10 – 50
+db.zips.find({pop:{$gt: 10,$lt:50}})
+//
+7. Tìm tất cả các thành phố của bang MA có dân số trên 500
+db.zips.find({pop:{$gt:500}},{state:'NA',city:1}).sort()
+8. Tìm tất cả các bang (không trùng)
+db.zips.distinct('state')
+9. Tìm tất cả các bang mà có chứa ít nhất 1 thành phố có dân số trên 100000
+db.zips.distinct('state',{pop:{$gt:100000}})
+//
+10. Tính dân số trung bình của mỗi bang
+db.zips.aggregate([{$group:{_id:'$state',avg:{$avg:'$pop'}}},{$sort:{_id:1}}])
+11.Tìm những document của bang 'CT' và thành phố 'WATERBURY'
+db.zips.aggregate([{$match:{state:'CT',city:'WATERBURY'}}])
+12. Bang WA có bao nhiêu city (nếu trùng chỉ tính 1 lần) 
+db.zips.aggregate([{$match:{state:'WA'}},{$group:{_id:{city:'$city',state:'$state'}}},{$count:'countOfCity'}])
+13. .Tính số city của mỗi bang (nếu trùng chỉ tính 1 lần), kết quả giảm dần theo số city
+db.zips.aggregate([{$group: {_id:{state:'$state',city:'$city'}}},{$unwind:'$_id'},{$replaceWith:'$_id'},{$group:{_id: '$state',count_of_city:{$sum:1}}},{$sort:{count_of_city:-1}}])
++ $group đầu tiên dùng để xoá các document trùng lặp, {$unwind:'$_id'},{$replaceWith:'$_id'} dùng để xoá '_id' ở kết quả.
+14.  Tìm tất cả các bang có tổng dân số trên 10000000
+db.zips.aggregate([{$group:{_id:'$state',pop:{$sum:'$pop'}}}])
+15. Tìm các document có dân số lớn (nhỏ) nhất
+
+C1: Chỉ lấy 1 collections
+ 	db.zips.find().sort({pop:-1}).limit(1) 
+	db.zips.find().sort({pop:-1}).limit(1) 
+		
+C2: Lấy tất cả
+	 db.zips.aggregate([{$group:{_id:'$pop',fullDocument:{$push:'$$ROOT'}}},{$sort:{_id:1}},{$limit:1},{$unwind:'$fullDocument'}, { $replaceRoot: { newRoot: "$fullDocument" } }])
+16. .Tìm bang có tổng dân số lớn nhất
+db.zips.aggregate([{$group:{_id:'$state',avg_of_pop:{$avg:'$pop'}}},{$sort:{avg_of_pop:-1,_id:1}},{$limit:1}])
+17. Xuất những document có dân số dưới dân số trung bình của mỗi city
+
+//================================================================================================================
+
+// Chữa bài
+-	Tìm tất cả các thành phố của bang MA có dân số trên 500
+
+zipsdb> db.zips.aggregate([{ $match: { $and: [{ state: 'MA' }, { pop: { $gt: 500 } }] } },{$project:{city:1, _id:0}},{$group:{_id:'$city'}}])
+
+db.zips.distinct("city",{$and:[{state:'MA'},{pop:{$gt:500}}]})
+
+Tìm tất cả các bang (không trùng)
+ db.zips.distinct('state')
+ db.zips.aggregate([{$match:{pop:{$gt:100000}}},{$group:{_id:'$state'}}])
+
+db.zips.aggregate([{ $group: { _id: [{ state: '$state' ,  city: '$city' }] } },{$unwind:'$_id'}, {$replaceWith:'$_id'},{$group:{_id:'$state', city_in_total:{$sum:1}}},{$sort:{city_in_total:-1}}])
+
+
+-Đếm số users theo từng tỉnh
+db.users.aggregate([{$group: {_id:'$province',count:{$sum:1}}}])
+// Tính trung bình dân số theo tên thành phố có dân số > 65783
+db.zips.aggregate([{$group:{_id:'$city',avg:{$avg:'$pop'}}},{$match:{avg:{$gt:65783}}}])
+
