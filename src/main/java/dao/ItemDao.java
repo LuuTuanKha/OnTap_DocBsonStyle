@@ -17,6 +17,8 @@ import org.reactivestreams.Subscription;
 import com.google.gson.Gson;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.Indexes;
+import com.mongodb.client.model.Updates;
+import com.mongodb.client.result.InsertManyResult;
 import com.mongodb.client.result.InsertOneResult;
 import com.mongodb.client.result.UpdateResult;
 import com.mongodb.reactivestreams.client.MongoClient;
@@ -72,7 +74,8 @@ public class ItemDao extends AbstractDao {
 				Items item = GSON.fromJson(json, Items.class);
 				item.setId(t.getString("_id"));
 				item.setCategory(category);
-				System.out.println(item);
+				list.add(item);
+//				System.out.println(item);
 				this.s.request(1);
 			}
 
@@ -91,7 +94,7 @@ public class ItemDao extends AbstractDao {
 		latch.await();
 		return list;
 	}
-
+	
 	public boolean addItems(Items item) throws InterruptedException {
 		CountDownLatch latch = new CountDownLatch(1);
 
@@ -141,7 +144,86 @@ public class ItemDao extends AbstractDao {
 
 		return rs.get();
 	}
+	public boolean insertMany(List<Items> listItem) throws InterruptedException {
+		System.out.println("xxx");
+		CountDownLatch latch = new CountDownLatch(1);
+		AtomicBoolean rs = new AtomicBoolean(false);
+		List<Document> documents = new ArrayList<Document>();
+		for (Items items : listItem) {
+			Document doc = Document.parse(GSON.toJson(items));
+			Document cateDoc = (Document) doc.get("category");
+			// Vì document dùng _id nên cần xoá id và đổi thành _id
+			doc.append("_id", doc.getString("id"));
+			doc.remove("id");
+			doc.remove("category");
+			doc.append("categoryID", cateDoc.getString("id"));
+//			System.out.println(doc.getString("_id"));
+			documents.add(doc);
+			
+			
+			
+		}
+		Publisher<InsertManyResult> pub = itemCollection.insertMany(documents);
+		Subscriber<InsertManyResult> sub = new Subscriber<InsertManyResult>() {
+			@Override
+			public void onSubscribe(Subscription s) {
+				// TODO Auto-generated method stub
+				
+				s.request(1);
+				
+			}
 
+			@Override
+			public void onNext(InsertManyResult t) {
+				// TODO Auto-generated method stub
+				if (t.getInsertedIds() != null)
+					rs.set(true);
+			}
+
+			@Override
+			public void onError(Throwable t) {
+				// TODO Auto-generated method stub
+				t.printStackTrace();
+			}
+
+			@Override
+			public void onComplete() {
+				// TODO Auto-generated method stub
+				latch.countDown();
+			}
+		};
+//		itemCollection.insertMany(documents).subscribe(new Subscriber<InsertManyResult>() {
+//			Subscription s;
+//			@Override
+//			public void onSubscribe(Subscription s) {
+//				// TODO Auto-generated method stub
+//				this.s =s;
+//				this.s.request(1);
+//			}
+//
+//			@Override
+//			public void onNext(InsertManyResult t) {
+//				// TODO Auto-generated method stub
+//				System.out.println(t);
+//				this.s.request(1);
+//			}
+//
+//			@Override
+//			public void onError(Throwable t) {
+//				// TODO Auto-generated method stub
+//				t.printStackTrace();
+//			}
+//
+//			@Override
+//			public void onComplete() {
+//				// TODO Auto-generated method stub
+//				latch.countDown();
+//			}
+//		});
+		pub.subscribe(sub);
+		latch.await();
+		return rs.get();
+	}
 	public Map<Category, Integer> getNumberItemsByCategory() throws InterruptedException {
 		CountDownLatch latch = new CountDownLatch(1);
 		Map<Category, Integer> map = new HashMap<Category, Integer>();
@@ -284,6 +366,7 @@ public class ItemDao extends AbstractDao {
 		Gson gson = new Gson();
 		String json = gson.toJson(newBattery);
 		Bson bson = doc.parse(json);
+//		itemCollection.updateOne(Filters.eq("_id", itemID), Updates.set("battery", doc))
 		itemCollection.updateOne(Filters.eq("_id", ItemID), new Document("$set", new Document("battery", bson)))
 				.subscribe(new Subscriber<UpdateResult>() {
 					Subscription s;
@@ -369,5 +452,6 @@ public class ItemDao extends AbstractDao {
 		return list;
 
 	}
+	
 
 }
